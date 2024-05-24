@@ -83,7 +83,7 @@ for index, row in df.iterrows():
 save_progress(df, file_path)
 print("Final progress saved")
 
-df4[df4['Violation_Text'].isnull()].head()
+df[df['Violation_Text'].isnull()].head()
 
 
 
