@@ -23,7 +23,7 @@ jobs:
 
     - name: Run the scraper
       run: |
-        python scraper.py
+        python Restaurant_inspection_2023_2024.ipynb
 
     - name: Commit and push results
       run: |
