@@ -23,7 +23,7 @@ jobs:
 
     - name: Run the scraper
       run: |
-        python scraper.ipynb
+        python scraper.py
 
     - name: Commit and push results
       run: |
