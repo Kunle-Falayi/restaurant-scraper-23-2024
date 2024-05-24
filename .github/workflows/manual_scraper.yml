@@ -26,11 +26,11 @@ jobs:
         python scraper.py
 
     - name: Commit and push results
+      env:
+        GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
         git config --global user.name 'github-actions'
         git config --global user.email 'github-actions@github.com'
         git add scraped_data.csv
         git commit -m 'Update scraped data'
         git push
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
