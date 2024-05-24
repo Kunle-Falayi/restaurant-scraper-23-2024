@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup as bs
 import requests
 import time
 import os
+import numpy as np
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
