@@ -19,8 +19,8 @@ import datetime
 import requests
 import numpy as np
 
-ins_2024 = pd.read_csv('/content/drive/MyDrive/Restaurant inspections/2024_inspection.csv')
-ins_2023 = pd.read_csv('/content/drive/MyDrive/Restaurant inspections/2023_inspection.csv')
+ins_2024 = pd.read_csv('data/2024_inspection.csv')
+ins_2023 = pd.read_csv('data/2023_inspection.csv')
 
 df = pd.concat([ins_2024, ins_2023])
 
