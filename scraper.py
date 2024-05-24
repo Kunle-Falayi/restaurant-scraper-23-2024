@@ -8,33 +8,23 @@ Original file is located at
 """
 
 import pandas as pd
+from bs4 import BeautifulSoup as bs
+import requests
+import time
+import os
+
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-from bs4 import BeautifulSoup as bs
-from urllib.request import urlopen
-import re
-import time
-import datetime
-import requests
-import numpy as np
-import os 
-
-
-
+# Load inspection data
 ins_2024 = pd.read_csv('data/2024_inspection.csv')
 ins_2023 = pd.read_csv('data/2023_inspection.csv')
 
 df = pd.concat([ins_2024, ins_2023])
-
-df.head()
-
 df['Address'] = df['Address'].str.strip()
 df['Inspection Date'] = pd.to_datetime(df['Inspection Date'])
 df = df[df['Inspection Date'] > '2023-04-21']
 df['Year'] = df['Inspection Date'].dt.year
-
-df[df['Year'] == 2023].sort_values(by='Inspection Date', ascending=True).head()
 
 # Path to save the scraped data
 file_path = 'scraped_data.csv'
@@ -43,14 +33,20 @@ file_path = 'scraped_data.csv'
 def save_progress(df, path):
     df.to_csv(path, index=False)
 
-# Load existing data if the file exists
+# Initialize or load existing data
 if os.path.exists(file_path):
-    df = pd.read_csv(file_path)
+    scraped_df = pd.read_csv(file_path)
 else:
-    df = pd.DataFrame(columns=['Inspection Details', 'Violation_Text'])
+    scraped_df = pd.DataFrame(columns=['Inspection Details', 'Violation_Text'])
+
+# Add missing columns to the DataFrame to ensure compatibility
+if 'Violation_Text' not in df.columns:
+    df['Violation_Text'] = np.nan
 
 # Iterate through each row in the DataFrame
 for index, row in df.iterrows():
+    if pd.notnull(row['Violation_Text']):
+        continue  # Skip already processed rows
     url = row['Inspection Details']
     if pd.isnull(url):  # If URL is NaN, set "This row has no violation"
         df.at[index, 'Violation_Text'] = "This row has no violation"
@@ -83,8 +79,7 @@ for index, row in df.iterrows():
 save_progress(df, file_path)
 print("Final progress saved")
 
-df[df['Violation_Text'].isnull()].head()
-
+print(df[df['Violation_Text'].isnull()].head())
 
 
 
