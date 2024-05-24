@@ -18,6 +18,9 @@ import time
 import datetime
 import requests
 import numpy as np
+import os 
+
+
 
 ins_2024 = pd.read_csv('data/2024_inspection.csv')
 ins_2023 = pd.read_csv('data/2023_inspection.csv')
