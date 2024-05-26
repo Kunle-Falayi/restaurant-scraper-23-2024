@@ -9,80 +9,190 @@ Original file is located at
 
 import pandas as pd
 from bs4 import BeautifulSoup as bs
-import requests
+from urllib.request import urlopen
+import re
 import time
-import os
+import datetime
+import requests
 import numpy as np
+import os
 
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
+
 
 # Load inspection data
 ins_2024 = pd.read_csv('data/2024_inspection.csv')
 ins_2023 = pd.read_csv('data/2023_inspection.csv')
 
-df = pd.concat([ins_2024, ins_2023])
-df['Address'] = df['Address'].str.strip()
-df['Inspection Date'] = pd.to_datetime(df['Inspection Date'])
-df = df[df['Inspection Date'] > '2023-04-21']
-df['Year'] = df['Inspection Date'].dt.year
+df4 = pd.concat([ins_2024, ins_2023])
+df4['Address'] = df4['Address'].str.strip()
+df4['Inspection Date'] = pd.to_datetime(df4['Inspection Date'])
+df4 = df4[df4['Inspection Date'] > '2023-04-21']
+df4['Year'] = df4['Inspection Date'].dt.year
 
-# Path to save the scraped data
-file_path = 'scraped_data.csv'
+df4 = df4[:25000]
 
-# Function to save progress
-def save_progress(df, path):
-    df.to_csv(path, index=False)
+# Initialize lists to store the scraped text and URLs
+violation_texts = []
+scraped_urls = []
+violation_descs = []
 
-# Initialize or load existing data
-if os.path.exists(file_path):
-    scraped_df = pd.read_csv(file_path)
-else:
-    scraped_df = pd.DataFrame(columns=['Inspection Details', 'Violation_Text'])
+# Initialize a counter for batch processing
+batch_counter = 0
 
-# Add missing columns to the DataFrame to ensure compatibility
-if 'Violation_Text' not in df.columns:
-    df['Violation_Text'] = np.nan
-
-# Iterate through each row in the DataFrame
-for index, row in df.iterrows():
-    if pd.notnull(row['Violation_Text']):
-        continue  # Skip already processed rows
+# Loop through each row in the dataframe
+for index, row in df4.iterrows():
+    print(f'Scraping row {index}...')
     url = row['Inspection Details']
-    if pd.isnull(url):  # If URL is NaN, set "This row has no violation"
-        df.at[index, 'Violation_Text'] = "This row has no violation"
-        continue
-    print(f"Scraping row {index + 1}: {url}")
-    try:
+    
+    if url.startswith("http"):
+        # Send a request to the URL
         response = requests.get(url)
+        
         if response.status_code == 200:
-            soup = bs(response.text, 'html.parser')
-            violation_element = soup.find(class_="col-5 CellJustify")
-            if violation_element:  # Check if element was found
-                violation_text = violation_element.text.strip()
-                df.at[index, 'Violation_Text'] = violation_text
+            # Parse the HTML content
+            soup = bs(response.content, 'html.parser')
+            
+            # Find all texts under the class name 'col-5 CellJustify'
+            elements_5 = soup.find_all(class_='col-5 CellJustify')
+            if elements_5:
+                violation_text = ' '.join([element.get_text(strip=True) for element in elements_5])
             else:
-                df.at[index, 'Violation_Text'] = "No violation text found"
+                violation_text = 'No violations'
+                
+            # Find all texts under the class name 'col-3 CellJustify'
+            elements_3 = soup.find_all(class_='col-3 CellJustify')
+            if elements_3:
+                violation_desc = ' '.join([element.get_text(strip=True) for element in elements_3])
+            else:
+                violation_desc = ''
         else:
-            df.at[index, 'Violation_Text'] = "Error: Unable to fetch data from URL"
-    except Exception as e:
-        print(f"Error: {e}")
-        df.at[index, 'Violation_Text'] = "Error: Unable to fetch data from URL"
+            violation_text = 'No violations'
+            violation_desc = ''
+    else:
+        violation_text = 'No violations'
+        violation_desc = ''
+    
+    # Append the scraped text and URL to the lists
+    violation_texts.append(violation_text)
+    scraped_urls.append(url)
+    violation_descs.append(violation_desc)
+    
+    # Pause to avoid overwhelming the server
+    time.sleep(0.5)
+    
+    # Save the dataframe to CSV every 100 rows
+    if (index + 1) % 100 == 0:
+        # Create a subset dataframe
+        subset_df = df4.iloc[index-99:index+1].copy()
+        subset_df['Violation Text'] = violation_texts[-100:]
+        subset_df['Scraped_url'] = scraped_urls[-100:]
+        subset_df['Violation_desc'] = violation_descs[-100:]
+        
+        # Save the subset dataframe to a local CSV file
+        if batch_counter == 0:
+            subset_df.to_csv('scraped_data.csv', index=False)
+        else:
+            subset_df.to_csv('scraped_data.csv', mode='a', header=False, index=False)
+        
+        print(f'Saved data up to row {index + 1} to CSV.')
+        batch_counter += 1
 
-    time.sleep(0.5)  # Sleep for 0.5 seconds to avoid overwhelming the server
+# Add the final scraped text and URLs as new columns in the dataframe
+if len(violation_texts) % 100 != 0:
+    subset_df = df4.iloc[batch_counter*100:].copy()
+    subset_df['Violation Text'] = violation_texts[batch_counter*100:]
+    subset_df['Scraped_url'] = scraped_urls[batch_counter*100:]
+    subset_df['Violation_desc'] = violation_descs[batch_counter*100:]
+    subset_df.to_csv('scraped_data.csv', mode='a', header=False, index=False)
 
-    # Save progress every 100 rows
-    if index % 100 == 0:
-        save_progress(df, file_path)
-        print(f"Progress saved at row {index}")
-
-# Save final progress
-save_progress(df, file_path)
-print("Final progress saved")
-
-print(df[df['Violation_Text'].isnull()].head())
+# Add the final scraped text and URLs to the main dataframe
+df4['Violation Text'] = violation_texts
+df4['Scraped_url'] = scraped_urls
+df4['Violation_desc'] = violation_descs
 
 
+df5 = df4[25001:].copy()
+df5 = df5.reset_index()
+
+
+# Initialize lists to store the scraped text and URLs
+violation_texts = []
+scraped_urls = []
+violation_descs = []
+
+# Initialize a counter for batch processing
+batch_counter = 0
+
+# Loop through each row in the dataframe
+for index, row in df5.iterrows():
+    print(f'Scraping row {index}...')
+    url = row['Inspection Details']
+    
+    if url.startswith("http"):
+        # Send a request to the URL
+        response = requests.get(url)
+        
+        if response.status_code == 200:
+            # Parse the HTML content
+            soup = bs(response.content, 'html.parser')
+            
+            # Find all texts under the class name 'col-5 CellJustify'
+            elements_5 = soup.find_all(class_='col-5 CellJustify')
+            if elements_5:
+                violation_text = ' '.join([element.get_text(strip=True) for element in elements_5])
+            else:
+                violation_text = 'No violations'
+                
+            # Find all texts under the class name 'col-3 CellJustify'
+            elements_3 = soup.find_all(class_='col-3 CellJustify')
+            if elements_3:
+                violation_desc = ' '.join([element.get_text(strip=True) for element in elements_3])
+            else:
+                violation_desc = ''
+        else:
+            violation_text = 'No violations'
+            violation_desc = ''
+    else:
+        violation_text = 'No violations'
+        violation_desc = ''
+    
+    # Append the scraped text and URL to the lists
+    violation_texts.append(violation_text)
+    scraped_urls.append(url)
+    violation_descs.append(violation_desc)
+    
+    # Pause to avoid overwhelming the server
+    time.sleep(0.5)
+    
+    # Save the dataframe to CSV every 100 rows
+    if (index + 1) % 100 == 0:
+        # Create a subset dataframe
+        subset_df = df5.iloc[index-99:index+1].copy()
+        subset_df['Violation Text'] = violation_texts[-100:]
+        subset_df['Scraped_url'] = scraped_urls[-100:]
+        subset_df['Violation_desc'] = violation_descs[-100:]
+        
+        # Save the subset dataframe to a local CSV file
+        if batch_counter == 0:
+            subset_df.to_csv('scraped_data2.csv', index=False)
+        else:
+            subset_df.to_csv('scraped_data2.csv', mode='a', header=False, index=False)
+        
+        print(f'Saved data up to row {index + 1} to CSV.')
+        batch_counter += 1
+
+# Add the final scraped text and URLs as new columns in the dataframe
+if len(violation_texts) % 100 != 0:
+    subset_df = df5.iloc[batch_counter*100:].copy()
+    subset_df['Violation Text'] = violation_texts[batch_counter*100:]
+    subset_df['Scraped_url'] = scraped_urls[batch_counter*100:]
+    subset_df['Violation_desc'] = violation_descs[batch_counter*100:]
+    subset_df.to_csv('scraped_data2.csv', mode='a', header=False, index=False)
+
+# Add the final scraped text and URLs to the main dataframe
+df5['Violation Text'] = violation_texts
+df5['Scraped_url'] = scraped_urls
+df5['Violation_desc'] = violation_descs
 
 
 
